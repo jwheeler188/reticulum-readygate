@@ -1,0 +1,13 @@
+[Unit]
+Description=rngit - Git over Reticulum node
+After=reticulum-ready.service
+Requires=reticulum-ready.service
+
+[Service]
+Type=simple
+ExecStart=/home/svcuser/.local/bin/rngit -s
+Restart=always
+User=svcuser
+
+[Install]
+WantedBy=multi-user.target

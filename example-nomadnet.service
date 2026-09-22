@@ -1,0 +1,12 @@
+[Unit]
+Description=Nomad Network Service
+After=reticulum-ready.service
+Requires=reticulum-ready.service
+
+[Service]
+ExecStart=/home/svcuser/.local/bin/nomadnet -d
+Restart=always
+User=svcuser
+
+[Install]
+WantedBy=default.target

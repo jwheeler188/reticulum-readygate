@@ -1,0 +1,14 @@
+[Unit]
+Description=Reticulum Network Stack daemon (rnsd)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=svcuser
+ExecStart=/home/svcuser/.local/bin/rnsd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

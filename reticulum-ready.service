@@ -1,0 +1,13 @@
+[Unit]
+Description=Wait for Reticulum (rnsd) to be ready
+After=reticulum.service
+Requires=reticulum.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=svcuser
+ExecStart=/home/svcuser/.local/bin/wait-for-rns.sh
+
+[Install]
+WantedBy=multi-user.target
