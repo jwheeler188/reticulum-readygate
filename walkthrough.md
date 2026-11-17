@@ -208,8 +208,7 @@ TRIES=0
 MAX_TRIES=30   # 30 * 2s = 60s timeout
 
 while true; do
-    OUTPUT="$(/home/svcuser/.local/bin/rnstatus 2>/dev/null)"
-    if [ "$OUTPUT" != "Could not get RNS status" ] && [ -n "$OUTPUT" ]; then
+    if /home/svcuser/.local/bin/rnstatus >/dev/null 2>&1; then
         exit 0
     fi
     TRIES=$((TRIES + 1))
@@ -222,8 +221,9 @@ done
 ```
 
 The script polls `rnstatus` every 2 seconds for up to 60 seconds. As soon as
-`rnstatus` returns real output (rather than the "Could not get RNS status"
-error it gives before RNS is up), the script exits 0 and the gate goes
+`rnstatus` exits successfully (it exits 1 and prints "No shared RNS instance
+available to get status from" - "Could not get RNS status" on older RNS -
+until rnsd is up), the script exits 0 and the gate goes
 "active." If RNS never comes up within the timeout, the gate fails loudly
 instead of hanging forever — so a genuinely broken `rnsd` shows up clearly
 in `systemctl status` rather than silently blocking everything downstream.
