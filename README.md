@@ -48,9 +48,6 @@ reticulum-ready.service    (this project — polls rnstatus until RNS is up)
 | `reloadstack.sh` | Restarts the whole stack in the correct order |
 | `stopstack.sh` | Stops the whole stack in the correct order |
 | `checkstack.sh` | Prints the status of every service in the stack |
-| `rns-failover.py` | Optional: priority failover between uplink interfaces (RNS 1.5.6+) |
-| `example-rns-failover.service` | systemd unit for the failover watchdog |
-| `example-rns-failover.plist` | launchd agent for the failover watchdog on macOS |
 
 ## Quick start
 
@@ -71,10 +68,10 @@ troubleshooting tips, and notes on Python-environment path issues (e.g.
 
 If your node connects to several hubs that are linked to each other,
 Reticulum uses all of them at once and receives the same announces several
-times. `rns-failover.py` keeps only the highest-priority working uplink
-attached, fails over to the next one when it drops, and fails back when it
-returns. It uses `rnstatus --attach/--detach`, so rnsd is never restarted.
-It runs as one more service behind the readiness gate. See section 9 of the
+times. The companion project [rns-failover](https://github.com/jwheeler188/rns-failover) keeps only the
+highest-priority working uplink attached, fails over to the next one when it
+drops, and fails back when it returns, without restarting rnsd. It runs as
+one more service behind the readiness gate: see section 9 of the
 walkthrough.
 
 ## Tested on

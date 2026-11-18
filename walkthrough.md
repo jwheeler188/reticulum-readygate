@@ -337,69 +337,27 @@ done. The gate approach is more robust because:
 
 If your node connects to more than one hub (your own gateway plus one or two
 public ones), Reticulum uses **all** of them at once. It has no "backup
-interface" setting. Every attached interface carries your announces and
-path requests and receives every announce the far side floods, so when the
-hubs are also linked to each other you get the same traffic several times
-over. Your node also picks whichever hub is one hop closer to a destination,
-which may not be the one you wanted to use.
+interface" setting, so when the hubs are also linked to each other you
+receive the same announces several times over, and your node may route
+through a hub you didn't want to use.
 
-`rns-failover.py` keeps **only the best working uplink attached**, in the
-priority order you give it:
+The companion project **[rns-failover](https://github.com/jwheeler188/rns-failover)** solves this. It
+keeps only the highest-priority working uplink attached, fails over when it
+drops and fails back when it returns, using `rnstatus --attach/--detach`
+(RNS 1.5.6+) so rnsd is never restarted. Its README covers installation,
+options, macOS and troubleshooting.
 
-- **Failover:** if no attached uplink has been online for `--grace` seconds
-  (default 30), it attaches the next one down the list.
-- **Failback:** once a higher-priority uplink has been back online for
-  `--hold` seconds (default 20), it detaches everything below it.
-- Higher-priority uplinks stay attached while they are down, so they can
-  reconnect on their own. A disconnected TCP client sends nothing, so this
-  causes no duplication.
-- Interfaces you don't list (AutoInterface, RNode, server interfaces, ...)
-  are never touched.
+To run it behind the readiness gate:
 
-It uses rnsd's live interface management (`rnstatus --attach` /
-`--detach`), so neither rnsd nor anything using it is restarted. This needs
-**RNS 1.5.6 or newer**.
-
-### Set it up
-
-1. **Mark the backup uplinks disabled** in `~/.reticulum/config`, so rnsd
-   starts with only the primary attached. `--attach` re-reads the config and
-   works on disabled sections.
+1. Install it as described in its README.
+2. In its `rns-failover.service`, replace `After=reticulum.service` /
+   `Wants=reticulum.service` with:
    ```ini
-   [[Primary Hub]]
-     type = TCPClientInterface
-     enabled = yes
-     ...
-
-   [[Secondary Hub]]
-     type = TCPClientInterface
-     enabled = false
-     ...
+   After=reticulum-ready.service
+   Requires=reticulum-ready.service
    ```
-2. **Install the script:**
-   ```bash
-   chmod +x rns-failover.py
-   cp rns-failover.py /home/svcuser/.local/bin/
-   ```
-3. **Edit `example-rns-failover.service`.** Set one `--tier` per uplink,
-   highest priority first, using the exact `[[section name]]` from your
-   config. Then install it next to your other dependents:
-   ```bash
-   sudo cp example-rns-failover.service /etc/systemd/system/rns-failover.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now rns-failover.service
-   ```
-4. **Add `rns-failover.service` to `DEPENDENTS`** in the stack scripts, so
-   it is restarted and stopped with the rest of the stack.
-
-Check what it is doing with `sudo journalctl -u rns-failover -f`, and run
-`python3 rns-failover.py --tier ... --once` to do a single pass by hand.
-
-### macOS
-
-There is no systemd on macOS, so use `example-rns-failover.plist` as a
-launchd agent instead. Instructions are in the comment at the top of that
-file.
+3. Add `rns-failover.service` to `DEPENDENTS` in the stack scripts, so it is
+   restarted and stopped with the rest of the stack.
 
 ## Troubleshooting
 
@@ -419,10 +377,3 @@ file.
   section 2 — confirm the exact executable path and its shebang line as the
   actual service user (`sudo -u svcuser which ...`), and make sure
   `ExecStart=` uses that full path rather than a bare command name.
-- **The failover watchdog logs "rnsd shared instance not reachable"**: rnsd
-  is not running or not acting as a shared instance (`share_instance = Yes`),
-  or `--rnstatus` points at a different Python environment than rnsd. Use
-  the same full `rnstatus` path you found in section 2.
-- **The failover attaches nothing**: each `--tier` name must match the
-  interface's `[[section name]]` exactly, including spaces and case. Compare
-  it with the names `rnstatus` prints in square brackets.
