@@ -3,7 +3,8 @@
 # reticulum.service -> reticulum-ready.service (readiness gate) -> dependents.
 #
 # Edit DEPENDENTS below to match the services you've configured to
-# depend on reticulum-ready.service.
+# depend on reticulum-ready.service. If you use the optional uplink
+# failover, add rns-failover.service here too.
 
 DEPENDENTS=(nomadnet.service rngit.service)
 SERVICES=(reticulum.service reticulum-ready.service "${DEPENDENTS[@]}")

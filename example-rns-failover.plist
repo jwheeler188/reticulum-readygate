@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS launchd agent for rns-failover.py (no systemd on macOS).
+  Replace svcuser with your macOS username, the Python and rnstatus paths
+  with your own (`which python3 rnstatus`), and the tiers with your
+  interface [[section names]], highest priority first.
+  Install:  cp example-rns-failover.plist ~/Library/LaunchAgents/local.rns-failover.plist
+            launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/local.rns-failover.plist
+-->
+<plist version="1.0"><dict>
+  <key>Label</key><string>local.rns-failover</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/local/bin/python3</string>
+    <string>/Users/svcuser/.local/bin/rns-failover.py</string>
+    <string>--rnstatus</string><string>/usr/local/bin/rnstatus</string>
+    <string>--tier</string><string>Primary Hub</string>
+    <string>--tier</string><string>Secondary Hub</string>
+    <string>--tier</string><string>Fallback Hub</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/svcuser/Library/Logs/rns-failover.log</string>
+  <key>StandardErrorPath</key><string>/Users/svcuser/Library/Logs/rns-failover.log</string>
+</dict></plist>
