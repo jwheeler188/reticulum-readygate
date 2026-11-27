@@ -201,35 +201,53 @@ WantedBy=multi-user.target
 ```
 
 **`wait-for-rns.sh`** (place at `/home/svcuser/.local/bin/wait-for-rns.sh`
-and `chmod +x` it):
-```bash
-#!/bin/bash
-TRIES=0
-MAX_TRIES=30   # 30 * 2s = 60s timeout
+and `chmod +x` it; the full script is in this repo). Its core is a polling
+loop:
 
-while true; do
-    if /home/svcuser/.local/bin/rnstatus >/dev/null 2>&1; then
-        exit 0
-    fi
-    TRIES=$((TRIES + 1))
-    if [ "$TRIES" -ge "$MAX_TRIES" ]; then
-        echo "Timed out waiting for RNS to become ready" >&2
-        exit 1
-    fi
-    sleep 2
-done
+```bash
+wait_ready() {
+    local tries=0
+    while [ "$tries" -lt "$MAX_TRIES" ]; do      # default 30 * 2s
+        if "$RNSTATUS" >/dev/null 2>&1; then
+            return 0
+        fi
+        tries=$((tries + 1))
+        sleep 2
+    done
+    return 1
+}
 ```
 
-The script polls `rnstatus` every 2 seconds for up to 60 seconds. As soon as
-`rnstatus` exits successfully (it exits 1 and prints "No shared RNS instance
-available to get status from" - "Could not get RNS status" on older RNS -
-until rnsd is up), the script exits 0 and the gate goes
-"active." If RNS never comes up within the timeout, the gate fails loudly
-instead of hanging forever — so a genuinely broken `rnsd` shows up clearly
-in `systemctl status` rather than silently blocking everything downstream.
+The script polls `rnstatus` every 2 seconds for about 60 seconds. As soon
+as `rnstatus` exits successfully (it exits 1 and prints "No shared RNS
+instance available to get status from" - "Could not get RNS status" on
+older RNS - until rnsd is up), the script exits 0 and the gate goes
+"active."
 
-Adjust `MAX_TRIES` if your interfaces (especially LoRa/RNode hardware) take
-longer than a minute to come online.
+**If RNS doesn't come up in time**, the gate assumes `rnsd` is hung. This
+really happens: `rnsd` can start the instant the network comes up at boot
+and then sit there, alive but with no shared instance and no interfaces.
+`Restart=` never fires for that, because the process hasn't exited, so
+without the gate everything downstream would stay down until someone
+noticed. The gate sends `SIGKILL` to `rnsd`'s main process (it runs as the
+same user, so no sudo is needed), `Restart=` starts a fresh `rnsd`, and the
+gate waits again. A restart caused this way doesn't stop the gate or its
+dependents; only an explicit `systemctl stop`/`restart` of
+`reticulum.service` does.
+
+After two restarts (by default) it gives up and fails loudly, so a
+genuinely broken `rnsd` shows up clearly in `systemctl status` rather than
+silently blocking everything downstream. `journalctl -u reticulum-ready`
+shows any restarts it made.
+
+Tune it with `Environment=` lines in `reticulum-ready.service`:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RNS_READY_TRIES` | `30` | Checks per wait, 2 s apart. Raise it if your interfaces (especially LoRa/RNode hardware) take longer than a minute to come online. |
+| `RNS_READY_RESTARTS` | `2` | How many times to restart a hung `rnsd` before giving up. `0` restores the old wait-only behaviour. |
+| `RNS_UNIT` | `reticulum.service` | The unit that runs `rnsd`. |
+| `RNSTATUS` | `~/.local/bin/rnstatus` | The `rnstatus` to run. |
 
 ## 5. Point your other services at the gate
 
@@ -364,9 +382,13 @@ To run it behind the readiness gate:
 - **A dependent fails to start even with the gate in place**: check the
   gate's own logs first — `sudo journalctl -u reticulum-ready.service -n 30`
   — to see whether it actually reported success.
-- **The gate times out**: increase `MAX_TRIES` in `wait-for-rns.sh`,
+- **The gate times out**: if its log shows it restarting `rnsd` on a
+  healthy but slow start, raise `RNS_READY_TRIES` (see section 4),
   especially if you're using LoRa/RNode hardware interfaces that take a
-  while to enumerate over USB.
+  while to enumerate over USB. If `rnsd` still isn't ready after the
+  restarts, check `journalctl -u reticulum.service` for why.
+- **"Could not signal rnsd"** in the gate's log: the gate and `rnsd` run
+  as different users. Run both as the same `User=`.
 - **Restarting the full stack still shows stale statuses**: make sure your
   reload script restarts `reticulum-ready.service` itself, not just
   `reticulum.service` — since it's `RemainAfterExit=yes`, its status won't

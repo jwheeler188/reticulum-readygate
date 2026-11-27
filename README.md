@@ -27,7 +27,11 @@ reticulum-ready.service    (this project — polls rnstatus until RNS is up)
 
 - **Fixes every start path** — boot, a manual `systemctl restart`, a full
   stack reload script — not just the one you remembered to add a delay to.
-- **Fails loudly instead of guessing** — if `rnsd` genuinely doesn't come
+- **Recovers a hung `rnsd`** — if `rnsd` is running but never becomes
+  ready, the gate kills it so systemd's `Restart=` starts a fresh one, then
+  waits again (twice by default). `Restart=` alone never notices this,
+  because a hung process hasn't exited.
+- **Fails loudly instead of guessing** — if `rnsd` still doesn't come
   up, the gate times out and reports it, rather than starting dependents
   against a broken interface.
 - **No wasted time** — `RemainAfterExit=yes` means the gate doesn't
@@ -42,7 +46,7 @@ reticulum-ready.service    (this project — polls rnstatus until RNS is up)
 |---|---|
 | `reticulum.service` | Base unit for `rnsd` itself |
 | `reticulum-ready.service` | The readiness gate — depend on this, not on `reticulum.service` |
-| `wait-for-rns.sh` | Polls `rnstatus` until RNS is ready (or times out) |
+| `wait-for-rns.sh` | Polls `rnstatus` until RNS is ready; restarts a hung `rnsd`, then times out |
 | `example-nomadnet.service` | Example dependent service, showing the pattern |
 | `example-rngit.service` | Another example dependent service ([rngit](https://github.com/) — Git over Reticulum) |
 | `reloadstack.sh` | Restarts the whole stack in the correct order |
